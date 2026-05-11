@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLANTIS - Encrypted Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #440044;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #550055;
+        }
+
+        /* General Panel Styling */
+        .atlantis-panel {
+            background: #1a1a1a;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Custom button styling */
+        .atlantis-button {
+            background: linear-gradient(135deg, #220022, #440044); /* Dark purple-blackish gradient */
+            transition: background 0.2s ease-in-out, transform 0.1s ease-out;
+            border-radius: 12px; /* Bubbly */
+        }
+        .atlantis-button:hover {
+            background: linear-gradient(135deg, #330033, #550055);
+            transform: translateY(-1px);
+        }
+        .atlantis-button:active {
+            transform: translateY(0);
+        }
+
+        /* Server Icon Styling for Modal */
+        .server-icon-modal {
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0066ff, #00cc66);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        .server-icon-modal:hover {
+            border-radius: 30%; /* Slightly less round on hover */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Message Styling */
+        .message {
+            background: #2a2a2a;
+            border-radius: 12px; /* Bubbly */
+            padding: 12px 16px;
+            margin: 8px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .message.own {
+            background: linear-gradient(135deg, #0055cc, #0077ff);
+            margin-left: auto;
+            max-width: 70%;
+            color: #e0e0e0;
+        }
+        .encrypted-badge {
+            background: #00cc66;
+            color: #000;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 6px; /* Bubbly */
+            display: inline-block;
+        }
+
+        /* User Status */
+        .user-status {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00cc66; /* Online */
+            display: inline-block;
+            margin-right: 8px;
+            border: 2px solid #1a1a1a; /* Border to stand out on dark background */
+        }
+
+        /* Mouse highlight */
+        #cursor-highlight {
+            width: 40px;
+            height: 40px;
+            background: rgba(100, 0, 100, 0.3); /* Subtle purple glow */
+            filter: blur(10px);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.1s ease-out;
+            pointer-events: none; /* Ensure it doesn't interfere with clicks */
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        /* Active Channel */
+        .active-channel {
+            background: #0066ff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body class="flex h-screen p-4 gap-4">
+    <!-- Mouse Highlight Element -->
+    <div id="cursor-highlight" class="rounded-full"></div>
+
+    <!-- Left Panel: Friends List & Server/DM Toggle -->
+    <div class="w-64 atlantis-panel flex flex-col">
+        <!-- Header for Friends List -->
+        <div class="p-4 border-b border-[#2a2a2a] flex items-center justify-between">
+            <h2 class="font-bold text-lg text-white">Friends</h2>
+            <button id="toggle-server-dm-list" class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 text-xl">⬆️</button>
+        </div>
+        <!-- Friends List Content -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#00cc66]"></span>
+                <p class="text-sm font-bold">FriendName1</p>
+            </div>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#00cc66]"></span>
+                <p class="text-sm font-bold">FriendName2</p>
+            </div>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#ffaa00]"></span>
+                <p class="text-sm font-bold">FriendName3</p>
+            </div>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#999]"></span>
+                <p class="text-sm font-bold">FriendName4</p>
+            </div>
+        </div>
+        <!-- User Profile at bottom -->
+        <div class="p-4 border-t border-[#2a2a2a] flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-green-500 shadow-md"></div>
+            <div class="flex-1">
+                <p class="text-sm font-bold">You</p>
+                <p class="text-xs text-gray-400">@yourname</p>
+            </div>
+            <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white">⚙️</button>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col atlantis-panel">
+        <!-- Header -->
+        <div class="h-16 border-b border-[#2a2a2a] flex items-center justify-between px-6">
+            <div>
+                <h1 class="font-bold text-lg"># general</h1>
+                <p class="text-xs text-gray-400">Welcome to ATLANTIS general chat</p>
+            </div>
+            <div class="flex gap-4">
+                <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white text-xl">🔍</button>
+                <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white text-xl">📞</button>
+                <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white text-xl">ℹ️</button>
+            </div>
+        </div>
+
+        <!-- Messages (empty initially) -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <!-- Messages will be dynamically added here -->
+            <p class="text-center text-gray-500 text-sm mt-10">Start a conversation!</p>
+        </div>
+
+        <!-- Message Input -->
+        <div class="h-24 border-t border-[#2a2a2a] p-4 flex flex-col gap-2">
+            <div class="bg-[#2a2a2a] rounded-xl border border-[#444] flex items-center gap-2 px-4 py-3 shadow-inner">
+                <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white">+</button>
+                <input type="text" placeholder="Message #general..." class="flex-1 bg-transparent outline-none text-sm">
+                <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white">😊</button>
+                <button class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white">📎</button>
+            </div>
+            <p class="text-xs text-gray-500 px-4">💚 All messages are end-to-end encrypted • Your privacy is protected</p>
+        </div>
+    </div>
+
+    <!-- Right Panel: Server Members / Call Members -->
+    <div class="w-64 atlantis-panel flex flex-col">
+        <!-- Header for Members -->
+        <div class="p-4 border-b border-[#2a2a2a] flex items-center justify-between">
+            <h3 id="members-panel-title" class="font-bold text-lg text-white">Server Members</h3>
+            <button id="toggle-call-members" class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 hover:text-white text-xl">📞</button>
+        </div>
+        
+        <!-- Server Members List -->
+        <div id="server-members-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#00cc66]"></span>
+                <div>
+                    <p class="text-sm font-bold">alex_dev</p>
+                    <p class="text-xs text-gray-500">Admin</p>
+                </div>
+            </div>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#00cc66]"></span>
+                <div>
+                    <p class="text-sm font-bold">luna_crypto</p>
+                    <p class="text-xs text-gray-500">Moderator</p>
+                </div>
+            </div>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#ffaa00]"></span>
+                <div>
+                    <p class="text-sm font-bold">ocean_waves</p>
+                    <p class="text-xs text-gray-500">Away</p>
+                </div>
+            </div>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#999]"></span>
+                <div>
+                    <p class="text-sm font-bold">cipher_knight</p>
+                    <p class="text-xs text-gray-500">Offline</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Call Members List (hidden by default) -->
+        <div id="call-members-list" class="flex-1 overflow-y-auto p-3 space-y-2 hidden">
+            <p class="text-center text-gray-500 text-sm mt-10">No one in call yet.</p>
+            <div class="p-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer flex items-center gap-2 transition-colors duration-150">
+                <span class="user-status bg-[#00cc66]"></span>
+                <div>
+                    <p class="text-sm font-bold">You</p>
+                    <p class="text-xs text-gray-500">In Call</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server/DM List Modal (hidden by default) -->
+    <div id="server-dm-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+        <div class="atlantis-panel w-96 h-3/4 flex flex-col">
+            <div class="p-4 border-b border-[#2a2a2a] flex justify-between items-center">
+                <h2 class="font-bold text-xl text-white">Servers & DMs</h2>
+                <button id="close-server-dm-modal" class="atlantis-button w-10 h-10 flex items-center justify-center text-gray-200 text-xl">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+                <!-- Server List -->
+                <p class="text-xs font-bold text-gray-500 mb-3">SERVERS</p>
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="server-icon-modal w-12 h-12" style="background: linear-gradient(135deg, #0066ff, #00cc66);">A</div>
+                    <div class="server-icon-modal w-12 h-12" style="background: linear-gradient(135deg, #ff6600, #ffaa00);">G</div>
+                    <div class="server-icon-modal w-12 h-12" style="background: linear-gradient(135deg, #cc00ff, #6600ff);">P</div>
+                    <div class="server-icon-modal w-12 h-12" style="background: linear-gradient(135deg, #220022, #440044); font-size: 20px;">+</div>
+                </div>
+                <!-- Channel List -->
+                <p class="text-xs font-bold text-gray-500 mb-3">CHANNELS</p>
+                <div class="space-y-2 mb-6">
+                    <div class="p-2 rounded-lg cursor-pointer active-channel hover:bg-[#2a2a2a] transition-colors duration-150">
+                        <span class="text-sm"># general</span>
+                    </div>
+                    <div class="p-2 rounded-lg cursor-pointer hover:bg-[#2a2a2a] transition-colors duration-150">
+                        <span class="text-sm"># announcements</span>
+                    </div>
+                    <div class="p-2 rounded-lg cursor-pointer hover:bg-[#2a2a2a] transition-colors duration-150">
+                        <span class="text-sm"># random</span>
+                    </div>
+                </div>
+                <!-- Direct Messages -->
+                <p class="text-xs font-bold text-gray-500 mb-3">DIRECT MESSAGES</p>
+                <div class="space-y-2">
+                    <div class="p-2 rounded-lg cursor-pointer hover:bg-[#2a2a2a] flex items-center transition-colors duration-150">
+                        <span class="user-status bg-[#00cc66]"></span>
+                        <span class="text-sm">alex_dev</span>
+                    </div>
+                    <div class="p-2 rounded-lg cursor-pointer hover:bg-[#2a2a2a] flex items-center transition-colors duration-150">
+                        <span class="user-status bg-[#ffaa00]"></span>
+                        <span class="text-sm">luna_crypto</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mouse Highlight Logic
+        const cursorHighlight = document.getElementById('cursor-highlight');
+        let isOverInteractive = false;
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isOverInteractive) {
+                cursorHighlight.style.opacity = '1';
+                cursorHighlight.style.transform = `translate(${e.clientX - 20}px, ${e.clientY - 20}px)`;
+            } else {
+                cursorHighlight.style.opacity = '0';
+            }
+        });
+
+        document.addEventListener('mouseleave', () => {
+            cursorHighlight.style.opacity = '0';
+        });
+
+        // Select all interactive elements that should hide the highlight
+        const interactiveElements = document.querySelectorAll('button, .server-icon-modal, .p-2.rounded-lg.cursor-pointer, input, .message-box, .atlantis-panel'); 
+        
+        interactiveElements.forEach(element => {
+            element.addEventListener('mouseover', () => {
+                isOverInteractive = true;
+                cursorHighlight.style.opacity = '0';
+            });
+            element.addEventListener('mouseout', () => {
+                isOverInteractive = false;
+            });
+        });
+
+        // Message input functionality
+        const input = document.querySelector('input[placeholder*="Message"]');
+        const messagesContainer = document.getElementById('messages-container');
+
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.trim()) {
+                // Remove the "Start a conversation!" message if it exists
+                const initialMessage = messagesContainer.querySelector('p.text-center');
+                if (initialMessage) {
+                    initialMessage.remove();
+                }
+
+                const newMessage = document.createElement('div');
+                newMessage.className = 'message own';
+                newMessage.innerHTML = `
+                    <div class="flex items-center gap-2 mb-1 justify-end">
+                        <span class="text-xs text-blue-200">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        <span class="encrypted-badge" style="background: #00ff88;">🔒 E2E</span>
+                    </div>
+                    <p class="text-sm">${this.value}</p>
+                `;
+                messagesContainer.appendChild(newMessage);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                this.value = '';
+            }
+        });
+
+        // Server/DM List Modal Toggle
+        const toggleServerDmListButton = document.getElementById('toggle-server-dm-list');
+        const serverDmModal = document.getElementById('server-dm-modal');
+        const closeServerDmModalButton = document.getElementById('close-server-dm-modal');
+
+        toggleServerDmListButton.addEventListener('click', () => {
+            serverDmModal.classList.remove('hidden');
+        });
+
+        closeServerDmModalButton.addEventListener('click', () => {
+            serverDmModal.classList.add('hidden');
+        });
+
+        // Toggle between Server Members and Call Members
+        const toggleCallMembersButton = document.getElementById('toggle-call-members');
+        const serverMembersList = document.getElementById('server-members-list');
+        const callMembersList = document.getElementById('call-members-list');
+        const membersPanelTitle = document.getElementById('members-panel-title');
+        let inCall = false;
+
+        toggleCallMembersButton.addEventListener('click', () => {
+            inCall = !inCall;
+            if (inCall) {
+                serverMembersList.classList.add('hidden');
+                callMembersList.classList.remove('hidden');
+                membersPanelTitle.textContent = 'Call Members';
+                toggleCallMembersButton.innerHTML = '📞'; // Or a different icon to show active call
+            } else {
+                callMembersList.classList.add('hidden');
+                serverMembersList.classList.remove('hidden');
+                membersPanelTitle.textContent = 'Server Members';
+                toggleCallMembersButton.innerHTML = '📞'; // Back to default call icon
+            }
+        });
+
+        // Simple interactivity for channel selection (within modal)
+        document.querySelectorAll('#server-dm-modal .p-2.rounded-lg.cursor-pointer').forEach(el => {
+            el.addEventListener('click', function() {
+                document.querySelectorAll('#server-dm-modal .active-channel').forEach(e => e.classList.remove('active-channel'));
+                if (this.textContent.includes('#')) {
+                    this.classList.add('active-channel');
+                }
+                // Optionally close modal after selection
+                // serverDmModal.classList.add('hidden');
+            });
+        });
+    </script>
+</body>
+</html>
