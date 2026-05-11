@@ -1,142 +1,61 @@
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const path = require('path');
 require('dotenv').config();
 
-// Initialize Express app
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Environment variables
-const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+// Serve static files from public folder
+app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory user storage (replace with database in production)
+// Mock database
 const users = [];
+const messages = [];
 
-// Routes
-app.post('/api/register', async (req, res) => {
-  try {
+// Register endpoint
+app.post('/api/register', (req, res) => {
     const { username, email, password } = req.body;
-
-    // Validate input
     if (!username || !email || !password) {
-      return res.status(400).json({ error: 'All fields are required' });
+        return res.status(400).json({ error: 'Missing fields' });
     }
-
-    // Check if user already exists
-    const existingUser = users.find(u => u.email === email);
-    if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
-    const newUser = {
-      id: Date.now(),
-      username,
-      email,
-      password: hashedPassword,
-      createdAt: new Date()
-    };
-
-    users.push(newUser);
-
-    // Generate JWT token
-    const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: { id: newUser.id, username, email }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    const user = { id: Date.now(), username, email, password };
+    users.push(user);
+    const token = require('jsonwebtoken').sign({ id: user.id }, 'secret_key');
+    res.json({ token, user: { id: user.id, username, email } });
 });
 
-app.post('/api/login', async (req, res) => {
-  try {
+// Login endpoint
+app.post('/api/login', (req, res) => {
     const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    // Find user
-    const user = users.find(u => u.email === email);
+    const user = users.find(u => u.email === email && u.password === password);
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+        return res.status(401).json({ error: 'Invalid credentials' });
     }
-
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: { id: user.id, username: user.username, email: user.email }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    const token = require('jsonwebtoken').sign({ id: user.id }, 'secret_key');
+    res.json({ token, user: { id: user.id, username: user.username, email } });
 });
 
-app.get('/api/users', (req, res) => {
-  res.json(users.map(u => ({ id: u.id, username: u.username, email: u.email })));
-});
-
-app.get('/', (req, res) => {
-  res.json({ message: 'ATLANTIS Server is running' });
-});
-// Add this after your other routes, before app.listen()
-
-const messages = []; // In-memory message storage
-
+// Send message endpoint
 app.post('/api/messages', (req, res) => {
-  try {
     const { content } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
-
     if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
+        return res.status(401).json({ error: 'Not authenticated' });
     }
-
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    const newMessage = {
-      id: Date.now(),
-      userId: decoded.id,
-      content,
-      timestamp: new Date()
-    };
-
-    messages.push(newMessage);
-    res.status(201).json(newMessage);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    const message = { id: Date.now(), content, timestamp: new Date() };
+    messages.push(message);
+    res.json(message);
 });
 
-app.get('/api/messages', (req, res) => {
-  res.json(messages);
+// Serve index.html for all other routes (SPA fallback)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start server
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ ATLANTIS Server running on port ${PORT}`);
+    console.log(`🌊 ATLANTIS Server is running on port ${PORT}`);
 });
