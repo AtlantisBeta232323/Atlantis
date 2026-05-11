@@ -365,6 +365,35 @@
             serverDmModal.classList.add('hidden');
         });
 
+      const input = document.querySelector('input[placeholder*="Message"]');
+input.addEventListener('keypress', async function(e) {
+    if (e.key === 'Enter' && this.value.trim()) {
+        const messageText = this.value;
+        
+        // Send to backend
+        await sendMessage(messageText);
+
+        // Remove the "Start a conversation!" message if it exists
+        const initialMessage = messagesContainer.querySelector('p.text-center');
+        if (initialMessage) {
+            initialMessage.remove();
+        }
+
+        const newMessage = document.createElement('div');
+        newMessage.className = 'message own';
+        newMessage.innerHTML = `
+            <div class="flex items-center gap-2 mb-1 justify-end">
+                <span class="text-xs text-blue-200">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span class="encrypted-badge" style="background: #00ff88;">🔒 E2E</span>
+            </div>
+            <p class="text-sm">${messageText}</p>
+        `;
+        messagesContainer.appendChild(newMessage);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        this.value = '';
+    }
+});
+
         // Toggle between Server Members and Call Members
         const toggleCallMembersButton = document.getElementById('toggle-call-members');
         const serverMembersList = document.getElementById('server-members-list');
