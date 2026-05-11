@@ -102,6 +102,39 @@ app.get('/api/users', (req, res) => {
 app.get('/', (req, res) => {
   res.json({ message: 'ATLANTIS Server is running' });
 });
+// Add this after your other routes, before app.listen()
+
+const messages = []; // In-memory message storage
+
+app.post('/api/messages', (req, res) => {
+  try {
+    const { content } = req.body;
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const newMessage = {
+      id: Date.now(),
+      userId: decoded.id,
+      content,
+      timestamp: new Date()
+    };
+
+    messages.push(newMessage);
+    res.status(201).json(newMessage);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/messages', (req, res) => {
+  res.json(messages);
+});
 
 // Start server
 app.listen(PORT, () => {
