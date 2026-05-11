@@ -1,80 +1,109 @@
-const JWT_SECRET = process.env.JWT_SECRET || 'atlantis-secret-key';
+const express = require('express');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+require('dotenv').config();
 
-async function initDB() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      username VARCHAR(255) UNIQUE NOT NULL,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      sender_id UUID REFERENCES users(id),
-      sender_name VARCHAR(255) NOT NULL,
-      content TEXT NOT NULL,
-      channel VARCHAR(255) DEFAULT 'general',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  console.log('✅ Database ready');
-}
+// Initialize Express app
+const app = express();
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Environment variables
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+
+// In-memory user storage (replace with database in production)
+const users = [];
+
+// Routes
 app.post('/api/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    const hash = await bcrypt.hash(password, 10);
-    const id = uuidv4();
-    await pool.query(
-      'INSERT INTO users (id, username, email, password_hash) VALUES ($1,$2,$3,$4)',
-      [id, username, email, hash]
-    );
-    const token = jwt.sign({ userId: id, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id, username, email } });
-  } catch (e) {
-    res.status(400).json({ error: 'Username or email already taken' });
+
+    // Validate input
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = users.find(u => u.email === email);
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const newUser = {
+      id: Date.now(),
+      username,
+      email,
+      password: hashedPassword,
+      createdAt: new Date()
+    };
+
+    users.push(newUser);
+
+    // Generate JWT token
+    const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: { id: newUser.id, username, email }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const result = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'Wrong username or password' });
-    const user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Wrong username or password' });
-    const token = jwt.sign({ userId: user.id, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Find user
+    const user = users.find(u => u.email === email);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: { id: user.id, username: user.username, email: user.email }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/messages/:channel', async (req, res) => {
-  const result = await pool.query(
-    'SELECT * FROM messages WHERE channel=$1 ORDER BY created_at ASC LIMIT 100',
-    [req.params.channel]
-  );
-  res.json(result.rows);
-});
-
-app.post('/api/messages', async (req, res) => {
-  const { sender_name, content, channel } = req.body;
-  const result = await pool.query(
-    'INSERT INTO messages (id, sender_name, content, channel) VALUES ($1,$2,$3,$4) RETURNING *',
-    [uuidv4(), sender_name, content, channel || 'general']
-  );
-  res.json(result.rows[0]);
+app.get('/api/users', (req, res) => {
+  res.json(users.map(u => ({ id: u.id, username: u.username, email: u.email })));
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.json({ message: 'ATLANTIS Server is running' });
 });
 
-const PORT = process.env.PORT || 3000;
-initDB();
-app.listen(PORT, () => console.log(`🌊 ATLANTIS running on port ${PORT}`));
+// Start server
+app.listen(PORT, () => {
+  console.log(`✅ ATLANTIS Server running on port ${PORT}`);
+});
